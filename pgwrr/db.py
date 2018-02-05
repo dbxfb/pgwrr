@@ -5,7 +5,7 @@ import logging
 from random import randint
 
 import geoip2.database
-import ipaddress
+import ipaddr
 
 import yaml
 try:
@@ -13,11 +13,63 @@ try:
 except ImportError:
     from yaml import Loader            # fallback to pure Python
 
+# From https://github.com/phihag/ipaddress/blob/master/ipaddress.py
+# because we cannot have python-ipaddress.
+_IPV4_PRIVATE_NETWORKS = [
+    ipaddr.IPv4Network(net)
+    for net in [
+            '0.0.0.0/8',
+            '10.0.0.0/8',
+            '127.0.0.0/8',
+            '169.254.0.0/16',
+            '172.16.0.0/12',
+            '192.0.0.0/29',
+            '192.0.0.170/31',
+            '192.0.2.0/24',
+            '192.168.0.0/16',
+            '198.18.0.0/15',
+            '198.51.100.0/24',
+            '203.0.113.0/24',
+            '240.0.0.0/4',
+            '255.255.255.255/32',
+    ]
+]
+
+_IPV6_PRIVATE_NETWORKS = [
+    ipaddr.IPv6Network(net)
+    for net in [
+            '::1/128',
+            '::/128',
+            '::ffff:0:0/96',
+            '100::/64',
+            '2001::/23',
+            '2001:2::/48',
+            '2001:db8::/32',
+            '2001:10::/28',
+            'fc00::/7',
+            'fe80::/10',
+    ]
+]
+
 def reserved(address):
     '''Test for valid IPv4 or IPv6 address and checks whether it is reserved.'''
     try:
-        ip = ipaddress.ip_address(unicode(address))
-        return not ip.is_global or ip.is_multicast
+        ip = ipaddr.IPAddress(unicode(address))
+        return (
+            ip.is_private or
+            ip.is_multicast or
+            ip.is_unspecified or
+            ip.is_loopback or
+            ip.is_link_local or (
+                isinstance(ip, ipaddr.IPv4Address) and (
+                    any(ip in net for net in _IPV4_PRIVATE_NETWORKS) or
+                    ip in ipaddr.IPv4Network('100.64.0.0/10')
+                )
+            ) or (
+                isinstance(ip, ipaddr.IPv6Address) and
+                any(ip in net for net in _IPV6_PRIVATE_NETWORKS)
+            )
+        )
     except ValueError:
         return True
 
